@@ -8,23 +8,17 @@ import {
     SafeAreaView,
     Alert,
     ActivityIndicator,
-    Platform,
-    Dimensions
+    Platform
 } from 'react-native';
 import { Stack } from 'expo-router';
-// Import des icônes pour mobile (version lucide-react-native)
 import {
     Truck, QrCode, ArrowLeft, ChevronRight, Navigation2,
-    Package, ShoppingBasket, RefreshCcw, Clock, Wifi, Battery,
-    ShieldCheck, BookOpen, Scale, Lock, Store, Gavel
+    Package, ShoppingBasket, RefreshCcw, Clock, Wifi, Battery
 } from 'lucide-react-native';
-// Import de la caméra native
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
-// Configuration API
 const API_BASE_URL = "https://api.neotech.fr";
 
-// Import conditionnel de la Map pour éviter le crash Web
 let MapView, Marker, PROVIDER_GOOGLE;
 if (Platform.OS !== 'web') {
     try {
@@ -39,7 +33,6 @@ if (Platform.OS !== 'web') {
 
 export default function App() {
     const [view, setView] = useState('list');
-    const [legalSubView, setLegalSubView] = useState('menu');
     const [loading, setLoading] = useState(false);
     const [tours, setTours] = useState([]);
     const [itinerary, setItinerary] = useState([]);
@@ -48,7 +41,9 @@ export default function App() {
     const [scanTarget, setScanTarget] = useState('depot');
     const [basketsScanned, setBasketsScanned] = useState(0);
 
-    // Gestion des permissions caméra
+    // ÉTAT POUR LE DÉLAI DE SCAN
+    const [isScanningPaused, setIsScanningPaused] = useState(false);
+
     const [permission, requestPermission] = useCameraPermissions();
 
     useEffect(() => {
@@ -89,12 +84,37 @@ export default function App() {
     };
 
     const handleBarcodeScanned = ({ data }) => {
+        // SI LE SCAN EST EN PAUSE, ON NE FAIT RIEN
+        if (isScanningPaused) return;
+
+        // ON ACTIVE LA PAUSE
+        setIsScanningPaused(true);
+
         const currentStep = itinerary[currentStepIndex];
         const total = parseInt(currentStep?.qte || 1);
 
         if (scanTarget === 'depot') {
             Alert.alert("Lieu Validé", `Arrivé à : ${currentStep.lieu}`);
             setScanTarget('panier');
+            const updateDistribution = async () => {
+                try {
+                    await fetch(`${API_BASE_URL}/distribution?id=eq.${currentStep.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal' // Standard PostgREST
+                        },
+                        body: JSON.stringify({
+                            validated_at: new Date().toISOString()
+                        })
+                    });
+                    console.log("Statut de livraison mis à jour sur NeoTech");
+                } catch (e) {
+                    console.log("Erreur API Distribution :", e);
+                }
+            };
+
+            updateDistribution();
         } else {
             if (basketsScanned < total - 1) {
                 setBasketsScanned(prev => prev + 1);
@@ -111,9 +131,12 @@ export default function App() {
                 }
             }
         }
-    };
 
-    // --- COMPOSANTS UI ---
+
+        setTimeout(() => {
+            setIsScanningPaused(false);
+        }, 1500);
+    };
 
     const Header = ({ title, onBack }) => (
         <View style={styles.header}>
@@ -129,26 +152,12 @@ export default function App() {
         </View>
     );
 
-    const BottomNav = () => (
-        <View style={styles.bottomNav}>
-            <TouchableOpacity style={styles.navItem} onPress={() => setView('list')}>
-                <Truck size={24} color={view === 'list' ? '#059669' : '#9ca3af'} />
-                <Text style={[styles.navText, { color: view === 'list' ? '#059669' : '#9ca3af' }]}>Tournées</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={() => { setView('legal'); setLegalSubView('menu'); }}>
-                <ShieldCheck size={24} color={view === 'legal' ? '#059669' : '#9ca3af'} />
-                <Text style={[styles.navText, { color: view === 'legal' ? '#059669' : '#9ca3af' }]}>Légal</Text>
-            </TouchableOpacity>
-        </View>
-    );
-
     if (!permission) return <View style={styles.centered}><ActivityIndicator /></View>;
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <Stack.Screen options={{ headerShown: false }} />
 
-            {/* Status Bar Simulée */}
             <View style={styles.statusBar}>
                 <View style={styles.row}><Clock size={10} color="white" /><Text style={styles.statusText}> 12:00</Text></View>
                 <View style={styles.row}><Wifi size={10} color="white" style={{ marginRight: 8 }} /><Battery size={10} color="white" /></View>
@@ -172,7 +181,6 @@ export default function App() {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
-                    <BottomNav />
                 </>
             )}
 
@@ -233,9 +241,16 @@ export default function App() {
                     />
                     <View style={styles.scanOverlay}>
                         <View style={styles.scanFrame} />
+
+                        {/* PETIT INDICATEUR VISUEL QUAND LE SCAN EST EN PAUSE */}
+                        <View style={{ height: 40, justifyContent: 'center' }}>
+                            {isScanningPaused && <ActivityIndicator color="#059669" />}
+                        </View>
+
                         <Text style={styles.scanInstructions}>
                             {scanTarget === 'depot' ? "Scanner le Lieu" : `Panier ${basketsScanned + 1}/${itinerary[currentStepIndex]?.qte}`}
                         </Text>
+
                         <TouchableOpacity style={styles.btnBackScan} onPress={() => setView('navigation')}>
                             <Text style={{color:'white', fontWeight:'bold'}}>RETOUR</Text>
                         </TouchableOpacity>
@@ -285,8 +300,5 @@ const styles = StyleSheet.create({
     scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: 'white', borderStyle: 'dashed', borderRadius: 25 },
     scanInstructions: { color: 'white', marginTop: 30, fontSize: 18, fontWeight: 'bold' },
     btnBackScan: { marginTop: 50, padding: 10 },
-    bottomNav: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, backgroundColor: 'white', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-    navItem: { alignItems: 'center' },
-    navText: { fontSize: 10, fontWeight: 'bold', marginTop: 4 },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
