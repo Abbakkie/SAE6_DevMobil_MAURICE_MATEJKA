@@ -1,6 +1,8 @@
+import { Text, View } from '@/components/Themed';
+import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import React, { useState } from 'react';
-import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -29,8 +31,11 @@ export default function LoginScreen() {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
+        placeholderTextColor="gray"
       />
-      <Button title="Se connecter" onPress={handleLogin} />
+      <TouchableOpacity style={styles.button} onPress={handleLogin}>
+        <Text style={styles.buttonText}>Se connecter</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -40,19 +45,34 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#fff', // Fond blanc forcé
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
+    color: '#000', // Texte noir forcé
   },
   input: {
     height: 40,
     borderColor: 'gray',
     borderWidth: 1,
-    marginBottom: 12,
+    marginBottom: 20,
     paddingHorizontal: 8,
     borderRadius: 5,
+    color: '#000',
+    backgroundColor: '#fff',
+  },
+  button: {
+    backgroundColor: Colors.light.tint, // Utilise directement la teinte du thème clair
+    padding: 12,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

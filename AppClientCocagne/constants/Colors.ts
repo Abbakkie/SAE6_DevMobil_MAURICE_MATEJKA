@@ -1,4 +1,4 @@
-const tintColorLight = '#2f95dc';
+const tintColorLight = '#4CAF50'; // Un vert pour l'harmonie
 const tintColorDark = '#fff';
 
 export default {

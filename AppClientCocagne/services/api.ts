@@ -88,7 +88,7 @@ export const getBasketDetails = async (adherentId: string) => {
     const productDetails = await getProductDetails(lastDelivery.produit_id);
 
     // Nouvelle logique pour récupérer la composition réelle
-    const compoResponse = await fetch(`${API_URL}/composition_produit_legume?produit_id=eq.${lastDelivery.produit_id}`);
+    const compoResponse = await fetch(`${API_URL}/composition?produit_id=eq.${lastDelivery.produit_id}`);
     if (!compoResponse.ok) throw new Error("Impossible de récupérer la composition");
     const compositionRelations = await compoResponse.json();
 

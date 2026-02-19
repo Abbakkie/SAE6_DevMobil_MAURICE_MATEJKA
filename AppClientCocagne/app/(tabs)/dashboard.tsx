@@ -1,8 +1,9 @@
 import { useAuth } from '@/context/AuthContext';
 import React, { useEffect, useState } from 'react';
-import { Button, StyleSheet } from 'react-native';
+import { Button, StyleSheet, useColorScheme } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
+import Colors from '@/constants/Colors';
 import { getBasketDetails } from '@/services/api';
 
 // L'interface représente maintenant une "Livraison" enrichie
@@ -10,7 +11,6 @@ interface LastDelivery {
   id: string;
   created_at: string;
   productName: string;
-  // On peut garder une composition statique pour l'exemple
   composition: string[]; 
 }
 
@@ -18,6 +18,7 @@ export default function DashboardScreen() {
   const [lastDelivery, setLastDelivery] = useState<LastDelivery | null>(null);
   const [loading, setLoading] = useState(true);
   const { user, signOut } = useAuth();
+  const colorScheme = useColorScheme();
 
   useEffect(() => {
     if (user) {
@@ -35,6 +36,38 @@ export default function DashboardScreen() {
       fetchBasket();
     }
   }, [user]);
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 20,
+    },
+    contentContainer: {
+      alignItems: 'center',
+      width: '100%',
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: 'bold',
+    },
+    subtitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginTop: 20,
+      marginBottom: 10,
+    },
+    separator: {
+      marginVertical: 30,
+      height: 1,
+      width: '80%',
+    },
+    buttonContainer: {
+      width: '100%',
+      paddingBottom: 20,
+    },
+  });
 
   return (
     <View style={styles.container}>
@@ -56,40 +89,8 @@ export default function DashboardScreen() {
         <Text>Aucune information de livraison disponible.</Text>
       )}
       <View style={styles.buttonContainer}>
-        <Button title="Déconnexion" onPress={signOut} color="#ff6347" />
+        <Button title="Déconnexion" onPress={signOut} color={Colors[colorScheme ?? 'light'].tint} />
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-  },
-  contentContainer: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
-  },
-  buttonContainer: {
-    width: '100%',
-    paddingBottom: 20,
-  },
-});
