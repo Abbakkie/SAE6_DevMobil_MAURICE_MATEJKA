@@ -75,40 +75,28 @@ export const getProductDetails = async (productId: string) => {
   }
 };
 
-export const getBasketDetails = async (adherentId: string) => {
+export const getDashboardStats = async (adherentId: string) => {
   try {
     const history = await getDeliveryHistory(adherentId);
     if (!history || history.length === 0) {
-      return null; // Pas d'historique, donc pas de "dernier panier"
+      return {
+        totalDeliveries: 0,
+        lastProductName: null,
+        lastDeliveryDate: null,
+      };
     }
-    // On suppose que la dernière livraison est la plus récente
-    const lastDelivery = history.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     
-    // Récupérer les détails du produit pour la dernière livraison
-    const productDetails = await getProductDetails(lastDelivery.produit_id);
-
-    // Nouvelle logique pour récupérer la composition réelle
-    const compoResponse = await fetch(`${API_URL}/composition?produit_id=eq.${lastDelivery.produit_id}`);
-    if (!compoResponse.ok) throw new Error("Impossible de récupérer la composition");
-    const compositionRelations = await compoResponse.json();
-
-    const compositionNames = await Promise.all(
-      compositionRelations.map(async (compo: any) => {
-        const legumeResponse = await fetch(`${API_URL}/legume?id=eq.${compo.legume_id}`);
-        if (!legumeResponse.ok) return 'Inconnu';
-        const legumeData = await legumeResponse.json();
-        return legumeData.length > 0 ? legumeData[0].nom : 'Inconnu';
-      })
-    );
+    // On trie pour trouver la livraison la plus récente
+    const lastDelivery = history.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
     return {
-      ...lastDelivery,
-      productName: productDetails.produit,
-      composition: compositionNames, // Remplacer par la composition réelle
+      totalDeliveries: history.length,
+      lastProductName: lastDelivery.productName,
+      lastDeliveryDate: lastDelivery.created_at, // On ajoute la date
     };
 
   } catch (error) {
-    console.error('Error getting basket details:', error);
+    console.error('Error getting dashboard stats:', error);
     throw error;
   }
 };
