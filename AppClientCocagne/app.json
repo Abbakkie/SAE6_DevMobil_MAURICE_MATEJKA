@@ -9,7 +9,12 @@
     "ios": {
       "supportsTablet": true
     },
-    "android": {},
+    "android": {
+      "package": "com.voidoma.AppClientCocagne",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
     "web": {
       "bundler": "metro",
       "output": "static"

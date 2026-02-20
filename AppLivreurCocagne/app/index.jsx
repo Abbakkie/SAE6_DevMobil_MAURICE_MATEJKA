@@ -16,20 +16,10 @@ import {
     Package, ShoppingBasket, RefreshCcw, Clock, Wifi, Battery
 } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { WebView } from 'react-native-webview'; // <--- IMPORT IMPORTANT
 
+// Configuration API NeoTech
 const API_BASE_URL = "https://api.neotech.fr";
-
-let MapView, Marker, PROVIDER_GOOGLE;
-if (Platform.OS !== 'web') {
-    try {
-        const Maps = require('react-native-maps');
-        MapView = Maps.default;
-        Marker = Maps.Marker;
-        PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
-    } catch (e) {
-        console.warn("Maps non chargé");
-    }
-}
 
 export default function App() {
     const [view, setView] = useState('list');
@@ -41,9 +31,7 @@ export default function App() {
     const [scanTarget, setScanTarget] = useState('depot');
     const [basketsScanned, setBasketsScanned] = useState(0);
 
-    // ÉTAT POUR LE DÉLAI DE SCAN
     const [isScanningPaused, setIsScanningPaused] = useState(false);
-
     const [permission, requestPermission] = useCameraPermissions();
 
     useEffect(() => {
@@ -84,10 +72,7 @@ export default function App() {
     };
 
     const handleBarcodeScanned = ({ data }) => {
-        // SI LE SCAN EST EN PAUSE, ON NE FAIT RIEN
         if (isScanningPaused) return;
-
-        // ON ACTIVE LA PAUSE
         setIsScanningPaused(true);
 
         const currentStep = itinerary[currentStepIndex];
@@ -96,25 +81,23 @@ export default function App() {
         if (scanTarget === 'depot') {
             Alert.alert("Lieu Validé", `Arrivé à : ${currentStep.lieu}`);
             setScanTarget('panier');
+
             const updateDistribution = async () => {
                 try {
                     await fetch(`${API_BASE_URL}/distribution?id=eq.${currentStep.id}`, {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Prefer': 'return=minimal' // Standard PostgREST
+                            'Prefer': 'return=minimal'
                         },
-                        body: JSON.stringify({
-                            validated_at: new Date().toISOString()
-                        })
+                        body: JSON.stringify({ validated_at: new Date().toISOString() })
                     });
-                    console.log("Statut de livraison mis à jour sur NeoTech");
                 } catch (e) {
-                    console.log("Erreur API Distribution :", e);
+                    console.log("Erreur API :", e);
                 }
             };
-
             updateDistribution();
+
         } else {
             if (basketsScanned < total - 1) {
                 setBasketsScanned(prev => prev + 1);
@@ -131,11 +114,7 @@ export default function App() {
                 }
             }
         }
-
-
-        setTimeout(() => {
-            setIsScanningPaused(false);
-        }, 1500);
+        setTimeout(() => setIsScanningPaused(false), 1500);
     };
 
     const Header = ({ title, onBack }) => (
@@ -169,7 +148,7 @@ export default function App() {
                     <ScrollView contentContainerStyle={styles.scrollContainer}>
                         <View style={styles.heroCard}>
                             <Text style={styles.heroTitle}>Mes Circuits</Text>
-                            <Text style={styles.heroSub}>{tours.length} circuits (NeoTech)</Text>
+                            <Text style={styles.heroSub}>{tours.length} circuits (NeoTech API)</Text>
                         </View>
                         {tours.map(tour => (
                             <TouchableOpacity key={tour.id} style={styles.tourCard} onPress={() => handleSelectTour(tour)}>
@@ -204,7 +183,7 @@ export default function App() {
                         </View>
                     </ScrollView>
                     <TouchableOpacity style={styles.btnAction} onPress={() => setView('navigation')}>
-                        <Navigation2 size={20} color="white" /><Text style={styles.btnText}>DÉMARRER</Text>
+                        <Navigation2 size={20} color="white" /><Text style={styles.btnText}>DÉMARRER LA TOURNÉE</Text>
                     </TouchableOpacity>
                 </>
             )}
@@ -213,20 +192,47 @@ export default function App() {
                 <>
                     <Header title="Navigation" onBack={() => setView('summary')} />
                     <View style={styles.mapContainer}>
-                        {Platform.OS !== 'web' && MapView ? (
-                            <MapView style={StyleSheet.absoluteFillObject} provider={PROVIDER_GOOGLE}
-                                     initialRegion={{ latitude: itinerary[currentStepIndex]?.lat || 48.1724, longitude: itinerary[currentStepIndex]?.lng || 6.4491, latitudeDelta: 0.01, longitudeDelta: 0.01 }}>
-                                <Marker coordinate={{ latitude: itinerary[currentStepIndex]?.lat || 48.1724, longitude: itinerary[currentStepIndex]?.lng || 6.4491 }} />
-                            </MapView>
-                        ) : <View style={styles.centered}><Text>Carte active sur Mobile</Text></View>}
+                        <WebView
+                            originWhitelist={['*']}
+                            domStorageEnabled={true}
+                            javaScriptEnabled={true}
+                            source={{
+                                html: `
+                                <html>
+                                  <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                                    <style>
+                                      body { margin: 0; padding: 0; background: #e5e7eb; }
+                                      #map { height: 100vh; width: 100vw; }
+                                      .leaflet-control-attribution { display: none; }
+                                    </style>
+                                  </head>
+                                  <body>
+                                    <div id="map"></div>
+                                    <script>
+                                      var map = L.map('map', {zoomControl: false}).setView([${itinerary[currentStepIndex]?.lat || 48.1724}, ${itinerary[currentStepIndex]?.lng || 6.4491}], 15);
+                                      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                                      L.marker([${itinerary[currentStepIndex]?.lat || 48.1724}, ${itinerary[currentStepIndex]?.lng || 6.4491}]).addTo(map);
+                                    </script>
+                                  </body>
+                                </html>
+                                `
+                            }}
+                            style={{ flex: 1 }}
+                            startInLoadingState={true}
+                            renderLoading={() => <ActivityIndicator style={styles.centered} color="#065f46" />}
+                        />
                     </View>
                     <View style={styles.bottomSheet}>
                         <Text style={styles.sheetTitle}>{itinerary[currentStepIndex]?.lieu}</Text>
+                        <Text style={{color: '#6b7280', marginBottom: 20}}>{itinerary[currentStepIndex]?.adresse}</Text>
                         <TouchableOpacity style={styles.btnPrimary} onPress={async () => {
                             if (!permission.granted) await requestPermission();
                             setView('scan');
                         }}>
-                            <QrCode size={20} color="white" /><Text style={styles.btnText}>ARRIVÉ AU DÉPÔT</Text>
+                            <QrCode size={20} color="white" /><Text style={styles.btnText}>ARRIVÉ AU POINT DE DÉPÔT</Text>
                         </TouchableOpacity>
                     </View>
                 </>
@@ -241,18 +247,14 @@ export default function App() {
                     />
                     <View style={styles.scanOverlay}>
                         <View style={styles.scanFrame} />
-
-                        {/* PETIT INDICATEUR VISUEL QUAND LE SCAN EST EN PAUSE */}
-                        <View style={{ height: 40, justifyContent: 'center' }}>
-                            {isScanningPaused && <ActivityIndicator color="#059669" />}
+                        <View style={{ height: 60, justifyContent: 'center' }}>
+                            {isScanningPaused && <ActivityIndicator size="large" color="#059669" />}
                         </View>
-
                         <Text style={styles.scanInstructions}>
-                            {scanTarget === 'depot' ? "Scanner le Lieu" : `Panier ${basketsScanned + 1}/${itinerary[currentStepIndex]?.qte}`}
+                            {scanTarget === 'depot' ? "Scannez le code du Lieu" : `Panier ${basketsScanned + 1}/${itinerary[currentStepIndex]?.qte}`}
                         </Text>
-
                         <TouchableOpacity style={styles.btnBackScan} onPress={() => setView('navigation')}>
-                            <Text style={{color:'white', fontWeight:'bold'}}>RETOUR</Text>
+                            <Text style={{color:'white', fontWeight:'bold', letterSpacing: 1.2}}>RETOUR NAVIGATION</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -292,13 +294,13 @@ const styles = StyleSheet.create({
     btnAction: { backgroundColor: '#065f46', margin: 20, padding: 18, borderRadius: 15, alignItems: 'center' },
     btnText: { color: 'white', fontWeight: 'bold' },
     mapContainer: { flex: 1, backgroundColor: '#e5e7eb' },
-    bottomSheet: { backgroundColor: 'white', padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 15 },
+    bottomSheet: { backgroundColor: 'white', padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35, elevation: 15, marginTop: -35 },
     sheetTitle: { fontSize: 22, fontWeight: 'bold' },
     btnPrimary: { backgroundColor: '#065f46', padding: 18, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
     containerBlack: { flex: 1, backgroundColor: 'black' },
-    scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-    scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: 'white', borderStyle: 'dashed', borderRadius: 25 },
-    scanInstructions: { color: 'white', marginTop: 30, fontSize: 18, fontWeight: 'bold' },
-    btnBackScan: { marginTop: 50, padding: 10 },
+    scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+    scanFrame: { width: 260, height: 260, borderWidth: 2, borderColor: '#059669', borderStyle: 'dashed', borderRadius: 30 },
+    scanInstructions: { color: 'white', marginTop: 20, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+    btnBackScan: { marginTop: 40, padding: 15, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10 },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
